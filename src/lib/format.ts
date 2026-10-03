@@ -1,5 +1,7 @@
 /** Small UI formatting helpers (display only — never enters the domain). */
 
+import type { IntegrityStatus, LifecycleState } from "../rsm/bucket/types";
+
 export function shortId(id: string | null | undefined, keep = 8): string {
   if (!id) return "—";
   return id.length <= keep + 1 ? id : `${id.slice(0, keep)}…`;
@@ -50,29 +52,37 @@ export function formatDateTime(iso: string): string {
 }
 
 /** Stable CSS/semantic class color per lifecycle state. */
-export function lifecycleStateTone(state: string): "primary" | "info" | "success" | "warning" | "muted" | "destructive" {
-  switch (state) {
-    case "CAPTURED":
-      return "muted";
-    case "VERIFIED":
-      return "info";
-    case "STORED":
-      return "info";
-    case "READY":
-      return "success";
-    case "ACTIVE":
-      return "primary";
-    case "RELEASED":
-      return "primary";
-    case "CLOSED":
-      return "muted";
-    default:
-      return "muted";
-  }
+export type Tone = "primary" | "info" | "success" | "warning" | "muted" | "destructive";
+
+/**
+ * Exhaustive map keyed by the domain union: adding a lifecycle state to
+ * LIFECYCLE_STATES is a compile error here until it gets a tone, instead of
+ * silently rendering as "muted".
+ */
+const LIFECYCLE_TONES: Record<LifecycleState, Tone> = {
+  CAPTURED: "muted",
+  VERIFIED: "info",
+  STORED: "info",
+  READY: "success",
+  ACTIVE: "primary",
+  RELEASED: "primary",
+  CLOSED: "muted",
+};
+
+const INTEGRITY_TONES: Record<IntegrityStatus, Tone> = {
+  VALID: "success",
+  INVALID: "destructive",
+  UNVERIFIED: "muted",
+};
+
+/**
+ * Stored buckets come from IndexedDB, so a value written by an older schema can
+ * reach the UI; fall back rather than render `undefined` classes.
+ */
+export function lifecycleStateTone(state: LifecycleState): Tone {
+  return LIFECYCLE_TONES[state] ?? "muted";
 }
 
-export function integrityTone(status: string): "success" | "destructive" | "muted" {
-  if (status === "VALID") return "success";
-  if (status === "INVALID") return "destructive";
-  return "muted";
+export function integrityTone(status: IntegrityStatus): Tone {
+  return INTEGRITY_TONES[status] ?? "muted";
 }

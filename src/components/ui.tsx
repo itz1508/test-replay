@@ -11,7 +11,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import type { Bucket, SourceType } from "../rsm/bucket/types";
+import type { Bucket, LifecycleState, SourceType } from "../rsm/bucket/types";
 import { integrityTone, lifecycleStateTone } from "../lib/format";
 
 /* ---------- Class presets (consistent key affordances) ---------- */
@@ -54,7 +54,7 @@ export function Badge({ tone = "neutral", children, className = "" }: { tone?: B
   );
 }
 
-export function StateBadge({ state }: { state: string }) {
+export function StateBadge({ state }: { state: LifecycleState }) {
   return (
     <Badge tone={lifecycleStateTone(state)}>
       <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" aria-hidden="true" />

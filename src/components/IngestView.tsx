@@ -28,13 +28,26 @@ const KINDS: { id: KindId; title: string; blurb: string; icon: typeof FileText }
   { id: "chatgpt", title: "ChatGPT export", blurb: "conversations.json — roles, ids, timestamps preserved.", icon: FileJson },
 ];
 
-const KIND_TITLES: Record<KindId, string> = {
-  plain: "Paste text",
-  markdown: "Markdown file",
-  txt: "Text file",
-  pdf: "PDF",
-  folder: "Folder",
-  chatgpt: "ChatGPT export",
+/** Single source of truth for kind titles — derived from KINDS, never re-declared. */
+const KIND_TITLE = Object.fromEntries(KINDS.map((k) => [k.id, k.title])) as Record<KindId, string>;
+
+/** Kinds captured from file inputs (everything except paste and folder). */
+type FileKind = Exclude<KindId, "plain" | "folder">;
+
+/** Per-kind file input config — replaces the nested accept/label/multiple ternaries. */
+const FILE_PICKER: Record<FileKind, { label: string; accept: string; multiple: boolean }> = {
+  markdown: { label: "Markdown file(s)", accept: ".md,.markdown", multiple: true },
+  txt: { label: "Text file(s)", accept: ".txt,.text", multiple: true },
+  pdf: { label: "PDF file", accept: ".pdf,.PDF", multiple: false },
+  chatgpt: { label: "ChatGPT export (conversations.json)", accept: ".json", multiple: false },
+};
+
+/** Placeholder for the optional source-label input, per kind that shows it. */
+const NAME_PLACEHOLDER: Partial<Record<KindId, string>> = {
+  plain: "e.g. Paste · pricing notes",
+  folder: "Folder name",
+  pdf: "e.g. whitepaper.pdf",
+  chatgpt: "e.g. conversations.json",
 };
 
 interface IngestRun {
@@ -256,7 +269,7 @@ function KindForm({
     <Panel
       title={
         <span>
-          New <span className="text-primary">{KIND_TITLES[kind]}</span> ingest
+          New <span className="text-primary">{KIND_TITLE[kind]}</span> ingest
         </span>
       }
       actions={
@@ -281,16 +294,11 @@ function KindForm({
           </div>
         )}
 
-        {(kind === "markdown" || kind === "txt" || kind === "pdf" || kind === "chatgpt") && (
+        {kind !== "plain" && kind !== "folder" && (
           <FilePicker
-            label={
-              kind === "markdown" ? "Markdown file(s)" :
-              kind === "txt" ? "Text file(s)" :
-              kind === "pdf" ? "PDF file" :
-              "ChatGPT export (conversations.json)"
-            }
-            accept={kind === "markdown" ? ".md,.markdown" : kind === "txt" ? ".txt,.text" : kind === "pdf" ? ".pdf,.PDF" : ".json"}
-            multiple={kind === "markdown" || kind === "txt"}
+            label={FILE_PICKER[kind].label}
+            accept={FILE_PICKER[kind].accept}
+            multiple={FILE_PICKER[kind].multiple}
             files={files}
             onChange={onPickFiles}
             disabled={busy}
@@ -321,11 +329,7 @@ function KindForm({
               type="text"
               value={sourceName}
               onChange={(e) => setSourceName(e.target.value)}
-              placeholder={
-                kind === "plain" ? "e.g. Paste · pricing notes" :
-                kind === "folder" ? "Folder name" :
-                kind === "pdf" ? "e.g. whitepaper.pdf" : "e.g. conversations.json"
-              }
+              placeholder={NAME_PLACEHOLDER[kind]}
               className={inputCls}
               disabled={busy}
             />
