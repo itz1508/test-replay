@@ -15,17 +15,20 @@
 
 import type { Bucket, IntegrityStatus, LifecycleState, SourceType } from "../bucket/types";
 import type { LifecycleEvent } from "../lifecycle/types";
+import type { Conversation, Relay } from "../relay/types";
 
 /** Default IndexedDB database name for the RSM store. */
 export const DEFAULT_DB_NAME = "rsm-store";
 
 /** Default schema version — bump + provide migration logic when stores change. */
-export const DEFAULT_DB_VERSION = 1;
+export const DEFAULT_DB_VERSION = 2;
 
 /** Physical object stores inside the IndexedDB database. */
 export const STORE_NAMES = {
   Buckets: "buckets",
   Events: "events",
+  Conversations: "conversations",
+  Relays: "relays",
 } as const;
 
 /** Optionally widen the filter set over time without breaking the contract. */
@@ -72,6 +75,26 @@ export interface RsmRepository {
 
   /** Delete a bucket and all of its events atomically (idempotent). */
   deleteBucket(bucketId: string): Promise<void>;
+
+  // ── V3: conversations & relays ────────────────────────────────────────────
+
+  /** Fetch one conversation by id, or null when absent. */
+  getConversation(conversationId: string): Promise<Conversation | null>;
+
+  /** Create a conversation (defaults to RSM OFF) or overwrite an existing one. */
+  saveConversation(conversation: Conversation): Promise<void>;
+
+  /** List conversations, newest updated first. */
+  listConversations(): Promise<Conversation[]>;
+
+  /** Persist a relay (create or overwrite). */
+  saveRelay(relay: Relay): Promise<void>;
+
+  /** Fetch one relay by id, or null when absent. */
+  getRelay(relayId: string): Promise<Relay | null>;
+
+  /** List relays for one conversation, newest created first. */
+  listRelaysForConversation(conversationId: string): Promise<Relay[]>;
 
   /**
    * Reload authoritative state from persistence on app start.

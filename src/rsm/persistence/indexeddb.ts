@@ -22,6 +22,7 @@
 import { RsmError } from "../errors";
 import type { Bucket } from "../bucket/types";
 import type { LifecycleEvent } from "../lifecycle/types";
+import type { Conversation, Relay } from "../relay/types";
 import {
   DEFAULT_DB_NAME,
   DEFAULT_DB_VERSION,
@@ -32,6 +33,9 @@ import {
 
 /** Index on the events store: all events for one bucket. */
 export const INDEX_EVENTS_BY_BUCKET_ID = "by_bucket_id";
+
+/** Index on the relays store: all relays for one conversation. */
+export const INDEX_RELAYS_BY_CONVERSATION_ID = "by_conversation_id";
 
 export interface IndexedDbRepositoryOptions {
   /** Database name. Defaults to DEFAULT_DB_NAME. */
@@ -99,6 +103,16 @@ function byTimestampAsc(a: LifecycleEvent, b: LifecycleEvent): number {
   return byTime !== 0 ? byTime : a.event_id.localeCompare(b.event_id);
 }
 
+function byUpdatedDesc(a: Conversation, b: Conversation): number {
+  const byTime = b.updated_at.localeCompare(a.updated_at);
+  return byTime !== 0 ? byTime : a.conversation_id.localeCompare(b.conversation_id);
+}
+
+function byRelayCreatedDesc(a: Relay, b: Relay): number {
+  const byTime = b.created_at.localeCompare(a.created_at);
+  return byTime !== 0 ? byTime : a.relay_id.localeCompare(b.relay_id);
+}
+
 /**
  * IndexedDB-backed RsmRepository. One instance owns one database connection;
  * call `restore()` once at app start, and `close()` on teardown.
@@ -155,6 +169,18 @@ export class IndexedDbRsmRepository implements RsmRepository {
             keyPath: "event_id",
           });
           eventsStore.createIndex(INDEX_EVENTS_BY_BUCKET_ID, "bucket_id", {
+            unique: false,
+          });
+        }
+        // V3 (v2 schema): conversations + relays stores.
+        if (!db.objectStoreNames.contains(STORE_NAMES.Conversations)) {
+          db.createObjectStore(STORE_NAMES.Conversations, { keyPath: "conversation_id" });
+        }
+        if (!db.objectStoreNames.contains(STORE_NAMES.Relays)) {
+          const relaysStore = db.createObjectStore(STORE_NAMES.Relays, {
+            keyPath: "relay_id",
+          });
+          relaysStore.createIndex(INDEX_RELAYS_BY_CONVERSATION_ID, "conversation_id", {
             unique: false,
           });
         }
@@ -322,6 +348,71 @@ export class IndexedDbRsmRepository implements RsmRepository {
         tx.abort();
         throw err;
       }
+    });
+  }
+
+  // ── V3: conversations & relays ────────────────────────────────────────────
+
+  async getConversation(conversationId: string): Promise<Conversation | null> {
+    return this.withDb(async (db) => {
+      const tx = db.transaction(STORE_NAMES.Conversations, "readonly");
+      const conversation = await requestResult<Conversation | undefined>(
+        tx.objectStore(STORE_NAMES.Conversations).get(conversationId),
+      );
+      await transactionDone(tx);
+      return conversation ?? null;
+    });
+  }
+
+  async saveConversation(conversation: Conversation): Promise<void> {
+    await this.withDb(async (db) => {
+      const tx = db.transaction(STORE_NAMES.Conversations, "readwrite");
+      tx.objectStore(STORE_NAMES.Conversations).put(conversation);
+      await transactionDone(tx);
+    });
+  }
+
+  async listConversations(): Promise<Conversation[]> {
+    return this.withDb(async (db) => {
+      const tx = db.transaction(STORE_NAMES.Conversations, "readonly");
+      const conversations = await requestResult<Conversation[]>(
+        tx.objectStore(STORE_NAMES.Conversations).getAll(),
+      );
+      await transactionDone(tx);
+      return conversations.sort(byUpdatedDesc);
+    });
+  }
+
+  async saveRelay(relay: Relay): Promise<void> {
+    await this.withDb(async (db) => {
+      const tx = db.transaction(STORE_NAMES.Relays, "readwrite");
+      tx.objectStore(STORE_NAMES.Relays).put(relay);
+      await transactionDone(tx);
+    });
+  }
+
+  async getRelay(relayId: string): Promise<Relay | null> {
+    return this.withDb(async (db) => {
+      const tx = db.transaction(STORE_NAMES.Relays, "readonly");
+      const relay = await requestResult<Relay | undefined>(
+        tx.objectStore(STORE_NAMES.Relays).get(relayId),
+      );
+      await transactionDone(tx);
+      return relay ?? null;
+    });
+  }
+
+  async listRelaysForConversation(conversationId: string): Promise<Relay[]> {
+    return this.withDb(async (db) => {
+      const tx = db.transaction(STORE_NAMES.Relays, "readonly");
+      const relays = await requestResult<Relay[]>(
+        tx
+          .objectStore(STORE_NAMES.Relays)
+          .index(INDEX_RELAYS_BY_CONVERSATION_ID)
+          .getAll(IDBKeyRange.only(conversationId)),
+      );
+      await transactionDone(tx);
+      return relays.sort(byRelayCreatedDesc);
     });
   }
 }

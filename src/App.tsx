@@ -4,7 +4,7 @@
  * All business logic lives below in src/rsm; this component only wires the
  * store hook to the four views (List ↔ Detail, Ingest, Replay).
  */
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { AlertTriangle } from "lucide-react";
 import { useRsmStore } from "./hooks/useRsm";
 import { Sidebar, type ViewId } from "./components/Sidebar";
@@ -12,12 +12,16 @@ import { BucketList } from "./components/BucketList";
 import { BucketDetail } from "./components/BucketDetail";
 import { IngestView } from "./components/IngestView";
 import { ReplayView } from "./components/ReplayView";
+import { RsmRail } from "./components/RsmRail";
+import { StreamSurface } from "./components/StreamSurface";
 import { Spinner, btnSecondary } from "./components/ui";
 
 export default function App() {
   const store = useRsmStore();
   const [view, setView] = useState<ViewId>("buckets");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  /** Focus target for the rail's Replay trigger — StreamSurface restores focus here on close. */
+  const replayTriggerRef = useRef<HTMLButtonElement>(null);
 
   const navigate = (v: ViewId) => {
     setView(v);
@@ -80,6 +84,8 @@ export default function App() {
       <main className="min-w-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-5xl px-5 py-6 sm:px-8">{body}</div>
       </main>
+      <RsmRail store={store} replayTriggerRef={replayTriggerRef} />
+      <StreamSurface store={store} triggerRef={replayTriggerRef} />
     </div>
   );
 }
